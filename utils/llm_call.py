@@ -1,6 +1,7 @@
 from litellm import completion
 import os
 import json
+import re
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -26,10 +27,28 @@ def get_response_from_llm(prompt):
 
 
 def parse_json_response(response):
-    # Parse the JSON response
-    try:
-        response = response.strip("```json")
-        response = response.strip("```")
-        return json.loads(response)
-    except json.JSONDecodeError:
+    """Parse JSON from LLM response, handling markdown blocks and extra text."""
+    if not response:
         return None
+
+    cleaned = response.strip()
+    if cleaned.startswith("```json"):
+        cleaned = cleaned[7:]
+    elif cleaned.startswith("```"):
+        cleaned = cleaned[3:]
+    if cleaned.endswith("```"):
+        cleaned = cleaned[:-3]
+    cleaned = cleaned.strip()
+
+    try:
+        return json.loads(cleaned)
+    except json.JSONDecodeError:
+        pass
+
+    match = re.search(r'\{.*\}', cleaned, re.DOTALL)
+    if match:
+        try:
+            return json.loads(match.group(0))
+        except json.JSONDecodeError:
+            return None
+    return None
