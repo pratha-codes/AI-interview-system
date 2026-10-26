@@ -18,17 +18,25 @@ def _cache_key(prompt: str) -> str:
     """Generate cache key for prompt (if you want to implement caching)"""
     return hash(prompt)
 
-async def _make_llm_call_async(prompt: str) -> Dict[str, Any]:
+async def _make_llm_call_async(prompt: str, max_retries: int = 3) -> Dict[str, Any]:
     """
-    Make LLM call asynchronously by running in thread pool
+    Make LLM call asynchronously by running in thread pool.
+    Retries if the LLM returns invalid JSON (None).
     """
-    try:
-        loop = asyncio.get_event_loop()
-        # Run the synchronous LLM call in a thread pool
-        response = await loop.run_in_executor(executor, get_response_from_llm, prompt)
-        return parse_json_response(response)
-    except Exception as e:
-        raise InterviewAnalysisError(f"Failed to get LLM response: {str(e)}")
+    loop = asyncio.get_event_loop()
+    last_response = None
+    for attempt in range(max_retries):
+        try:
+            response = await loop.run_in_executor(executor, get_response_from_llm, prompt)
+            last_response = response
+            parsed = parse_json_response(response)
+            if parsed is not None:
+                return parsed
+            print(f"Attempt {attempt + 1}: Got non-JSON response, retrying...")
+        except Exception as e:
+            if attempt == max_retries - 1:
+                raise InterviewAnalysisError(f"Failed to get LLM response: {str(e)}")
+    raise InterviewAnalysisError(f"LLM returned invalid JSON after {max_retries} attempts. Last response: {last_response[:200] if last_response else 'None'}")
 
 async def get_next_question(
     previous_question: str, 
