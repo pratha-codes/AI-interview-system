@@ -123,11 +123,11 @@ async def get_feedback_of_candidate_response(
         raise InterviewAnalysisError(f"Feedback generation failed: {str(e)}")
 
 async def analyze_candidate_response_and_generate_new_question(
-    question: str, 
-    candidate_response: str, 
-    job_description: str, 
+    question: str,
+    candidate_response: str,
+    job_description: str,
     resume_highlights: str,
-    timeout: float = 30.0
+    timeout: float = 300.0
 ) -> Tuple[str, Dict[str, Any]]:
     """
     Analyze candidate response and generate next question concurrently

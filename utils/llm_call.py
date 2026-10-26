@@ -1,6 +1,9 @@
 from litellm import completion
 import os
 import json
+from dotenv import load_dotenv
+
+load_dotenv()
 
 LLM_MODEL = os.environ.get("LLM_MODEL", "mistral/mistral-large-latest")
 

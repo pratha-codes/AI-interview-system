@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(ollama *)",
+      "Bash(git add *)",
+      "Bash(git commit -m 'Add AI Interview System - Working with Ollama local model *)",
+      "Bash(git push *)"
+    ]
+  }
+}
