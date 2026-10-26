@@ -342,7 +342,8 @@ def handle_audio_recording():
         with st.spinner("Processing your answer..."):
             # Save audio file
             name = st.session_state["name"]
-            filename = f"audio/{name}/{name}_{st.session_state['qa_index'] + 1}.wav"
+            safe_name = "".join(c for c in name if c.isalnum() or c in (" ", "_", "-")).strip().replace(" ", "_")
+            filename = f"audio/{safe_name}/{safe_name}_{st.session_state['qa_index'] + 1}.wav"
             os.makedirs(os.path.dirname(filename), exist_ok=True)
 
             with open(filename, "wb") as f:
