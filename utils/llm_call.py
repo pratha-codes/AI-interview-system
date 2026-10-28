@@ -22,6 +22,7 @@ def get_response_from_llm(prompt):
     response = completion(
         model=LLM_MODEL,
         messages=[{"role": "user", "content": prompt}],
+        max_tokens=2000,
     )
     return response.choices[0].message.content
 
