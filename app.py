@@ -3,6 +3,14 @@ import asyncio
 import os
 import time
 from datetime import datetime
+from litellm.exceptions import (
+    APIConnectionError,
+    AuthenticationError,
+    RateLimitError,
+    ServiceUnavailableError,
+    Timeout,
+)
+from utils.llm_call import LLM_MODEL
 from utils import (
     transcribe_with_speechmatics,
     extract_resume_info_using_llm,
@@ -17,6 +25,26 @@ from utils import (
 )
 
 MAX_QUESTIONS = 5
+
+
+def missing_llm_api_key():
+    """Return the required API key name for a supported provider if it is unset."""
+    provider = LLM_MODEL.split("/", 1)[0].lower()
+    key_name = {
+        "gemini": "GEMINI_API_KEY",
+        "mistral": "MISTRAL_API_KEY",
+        "openai": "OPENAI_API_KEY",
+        "anthropic": "ANTHROPIC_API_KEY",
+    }.get(provider)
+    return key_name if key_name and not os.getenv(key_name) else None
+
+
+def valid_candidate_name(name):
+    """Reject empty names and placeholders returned by the resume parser."""
+    return bool(
+        name
+        and name.strip().casefold() not in {"", "not provided", "unknown", "n/a", "none"}
+    )
 
 
 # Configuration and Styling
@@ -108,6 +136,10 @@ def render_sidebar():
 
     # File upload
     uploaded_resume = st.sidebar.file_uploader("Upload your Resume (PDF)", type=["pdf"])
+    candidate_name = st.sidebar.text_input(
+        "Candidate name (optional)",
+        help="Enter your name if the resume parser cannot identify it.",
+    )
 
     # Job description
     job_description = st.sidebar.text_area("Paste the Job Description")
@@ -129,14 +161,28 @@ def render_sidebar():
 
     submit = st.sidebar.button("Submit")
 
-    return uploaded_resume, job_description, submit
+    return uploaded_resume, candidate_name, job_description, submit
 
 
-def process_resume_submission(uploaded_resume, job_description):
+def process_resume_submission(uploaded_resume, job_description, candidate_name=""):
     """Process resume and job description submission"""
     with st.spinner("Processing resume..."):
         resume_content = load_content_streamlit(uploaded_resume)
-        name, resume_highlights = extract_resume_info_using_llm(resume_content)
+        if not resume_content or not resume_content.strip():
+            st.error(
+                "No readable text was found in this PDF. Upload a text-based resume "
+                "or run OCR on a scanned PDF before submitting."
+            )
+            return
+        extracted_name, resume_highlights = extract_resume_info_using_llm(resume_content)
+
+    name = candidate_name.strip() or extracted_name
+    if not valid_candidate_name(name):
+        st.error(
+            "Could not identify your name. Enter it in 'Candidate name (optional)' "
+            "and submit again."
+        )
+        return
 
     # Store in session state
     st.session_state["name"] = name
@@ -428,16 +474,41 @@ def main():
         insturctions = get_instructions()
 
     # Sidebar
-    uploaded_resume, job_description, submit = render_sidebar()
+    uploaded_resume, candidate_name, job_description, submit = render_sidebar()
 
     # Process submission
     if submit and uploaded_resume and job_description:
         insturctions.empty()
-        process_resume_submission(uploaded_resume, job_description)
+        missing_key = missing_llm_api_key()
+        if missing_key:
+            st.error(
+                f"Missing {missing_key}. Add it to a .env file in the project root "
+                "(see .env.example), then restart the app and submit again."
+            )
+        else:
+            try:
+                process_resume_submission(uploaded_resume, job_description, candidate_name)
+            except AuthenticationError:
+                st.error(
+                    f"The AI provider rejected your API key for {LLM_MODEL}. "
+                    "Check the key in .env, restart the app, and try again."
+                )
+            except ServiceUnavailableError:
+                st.error(
+                    "The configured Gemini models are temporarily overloaded (503). "
+                    "Please wait a moment and submit again."
+                )
+            except RateLimitError:
+                st.error(
+                    "Gemini's rate limit was reached. Wait for your quota to reset "
+                    "and submit again."
+                )
+            except (APIConnectionError, Timeout):
+                st.error("Could not reach the AI provider. Check your connection and submit again.")
         
 
     # Start interview button
-    if st.session_state["name"] and not st.session_state["interview_started"]:
+    if valid_candidate_name(st.session_state["name"]) and not st.session_state["interview_started"]:
         if st.button("Start Interview"):
             start_interview()
             st.rerun()

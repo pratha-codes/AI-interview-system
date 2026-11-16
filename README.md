@@ -48,9 +48,8 @@ An intelligent interview platform that conducts automated job interviews using A
 - PDF resume file
 - Job description text
 - LLM API key for AI processing
-    - Supported Models (LiteLLM): https://docs.litellm.ai/docs/providers (Change LLM_MODEL in .env)
-    - Free Experimental Model from MistralAI: https://mistral.ai/
-    - Note: If you're using a different model provider such as OpenAI, be sure to update the environment variable from MISTRAL_API_KEY to OPENAI_API_KEY as per the LiteLLM guidelines.
+    - Default: Gemini Flash-Lite via Google AI Studio (set `GEMINI_API_KEY` and `LLM_MODEL` in `.env`); `LLM_FALLBACK_MODELS` lists comma-separated models to try after a 503 error
+    - Supported Models (LiteLLM): https://docs.litellm.ai/docs/providers (change `LLM_MODEL` and the provider API key in `.env` to use another provider)
 - Speechmatics API key for speech-to-text
     - Speechmatics Platform: https://www.speechmatics.com/
 

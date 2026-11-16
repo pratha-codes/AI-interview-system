@@ -2,11 +2,24 @@ from litellm import completion
 import os
 import json
 import re
+import time
 from dotenv import load_dotenv
+from litellm.exceptions import ServiceUnavailableError
 
 load_dotenv()
 
-LLM_MODEL = os.environ.get("LLM_MODEL", "mistral/mistral-large-latest")
+LLM_MODEL = os.environ.get("LLM_MODEL", "gemini/gemini-3.1-flash-lite")
+fallback_models = os.environ.get("LLM_FALLBACK_MODELS")
+if fallback_models is None:
+    fallback_models = "gemini/gemini-3.6-flash" if LLM_MODEL.startswith("gemini/") else ""
+LLM_MODELS = tuple(
+    dict.fromkeys(
+        [
+            LLM_MODEL,
+            *(model.strip() for model in fallback_models.split(",") if model.strip()),
+        ]
+    )
+)
 
 
 def get_response_from_llm(prompt):
@@ -19,11 +32,19 @@ def get_response_from_llm(prompt):
     Returns:
         str: The response from the LLM.
     """
-    response = completion(
-        model=LLM_MODEL,
-        messages=[{"role": "user", "content": prompt}],
-    )
-    return response.choices[0].message.content
+    for model_index, model in enumerate(LLM_MODELS):
+        for attempt in range(2):
+            try:
+                response = completion(
+                    model=model,
+                    messages=[{"role": "user", "content": prompt}],
+                )
+                return response.choices[0].message.content
+            except ServiceUnavailableError:
+                if attempt == 0:
+                    time.sleep(1)
+                elif model_index == len(LLM_MODELS) - 1:
+                    raise
 
 
 def parse_json_response(response):

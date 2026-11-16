@@ -25,5 +25,5 @@ def load_content_streamlit(upload_file):
         # Extract the content
         content = ""
         for page in pdf_reader.pages:
-            content += page.extract_text()
+            content += page.extract_text() or ""
         return content
